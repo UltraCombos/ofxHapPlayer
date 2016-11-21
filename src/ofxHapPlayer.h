@@ -46,6 +46,7 @@ public:
     virtual ofPixels&           getPixels();
     virtual const ofPixels&     getPixels() const;
 
+	virtual ofTexture *         getTexturePtr() override { return getTexture(); }
     virtual ofTexture *         getTexture();
     virtual ofShader *          getShader();
     virtual float               getWidth() const;
