@@ -29,79 +29,154 @@
 #define __ofxHapPlayer__
 
 #include "ofMain.h"
+#include <vector>
+#include <ofxHap/Clock.h>
+#include <ofxHap/PacketCache.h>
+#include <ofxHap/Demuxer.h>
+#include <ofxHap/AudioThread.h>
+#include <ofxHap/TimeRangeSet.h>
 
-class ofxHapPlayer : public ofBaseVideoPlayer {
+namespace ofxHap {
+    class AudioThread;
+    class RingBuffer;
+}
+
+class ofxHapPlayer : public ofBaseVideoPlayer, public ofxHap::PacketReceiver, public ofxHap::AudioThread::Receiver {
 public:
     ofxHapPlayer();
     virtual ~ofxHapPlayer();
+
+    // TODO: allow these
+    ofxHapPlayer(ofxHapPlayer const &) = delete;
+    ofxHapPlayer& operator=(ofxHapPlayer const &x) = delete;
+
+    virtual bool                load(std::string name) override;
+    virtual void                close() override;
+    virtual void                update() override {};
     
-    virtual bool                load(string name);
-    virtual void                close();
-    virtual void                update();
+    virtual void                play() override;
+    virtual void                stop() override;
     
-    virtual void                play();
-    virtual void                stop();     
-    
-    virtual bool                isFrameNew() const;
-    virtual ofPixels&           getPixels();
-    virtual const ofPixels&     getPixels() const;
+    virtual bool                isFrameNew() const override;
+    virtual ofPixels&           getPixels() override;
+    virtual const ofPixels&     getPixels() const override;
 
 	virtual ofTexture *         getTexturePtr() override { return getTexture(); }
     virtual ofTexture *         getTexture();
     virtual ofShader *          getShader();
-    virtual float               getWidth() const;
-    virtual float               getHeight() const;
+    virtual float               getWidth() const override;
+    virtual float               getHeight() const override;
     
-    virtual bool                isPaused() const;
-    virtual bool                isLoaded() const;
-    virtual bool                isPlaying() const;
+    virtual bool                isPaused() const override;
+    virtual bool                isLoaded() const override;
+    virtual bool                isPlaying() const override;
+    std::string                 getError() const;
     
-    virtual bool                setPixelFormat(ofPixelFormat pixelFormat) {return false;};
-    virtual ofPixelFormat       getPixelFormat() const;
-    virtual string              getMoviePath() const;
-    virtual bool				getHapAvailable() const;
-	
-    virtual float               getPosition() const;
-    virtual float               getSpeed() const;
-    virtual float               getDuration() const;
-    virtual bool                getIsMovieDone() const;
+    virtual bool                setPixelFormat(ofPixelFormat pixelFormat) override {return false;};
 
-    virtual void                setPaused(bool pause);
-    virtual void                setPosition(float pct);
-    virtual void                setVolume(float volume); // 0..1
-    virtual void                setLoopState(ofLoopType state);
-    virtual void                setSpeed(float speed);
-    virtual void                setFrame(int frame);  // frame 0 = first frame...
-    virtual int                 getCurrentFrame() const;
-    virtual int                 getTotalNumFrames() const;
-    virtual ofLoopType          getLoopState() const;
     /*
-    virtual void                firstFrame();
-    virtual void                nextFrame();
-    virtual void                previousFrame();
+    Returns OF_PIXELS_RGBA, OF_PIXELS_RGB or OF_PIXELS_UNKNOWN
     */
+    virtual ofPixelFormat       getPixelFormat() const override;
+    virtual string              getMoviePath() const;
+    virtual bool				getHapAvailable() const; // TODO: delete (and mvar)?
+	
+    virtual float               getPosition() const override;
+    virtual float               getSpeed() const override;
+    virtual float               getDuration() const override;
+    virtual bool                getIsMovieDone() const override;
+
+    virtual void                setPaused(bool pause) override;
+    virtual void                setPosition(float pct) override;
+    float                       getVolume() const;
+    virtual void                setVolume(float volume) override; // 0..1
+    virtual void                setLoopState(ofLoopType state) override;
+    virtual void                setSpeed(float speed) override;
+/*  virtual void                setFrame(int frame);  // frame 0 = first frame... // TODO: */
+/*  virtual int                 getCurrentFrame() const; // TODO: */
+    virtual int                 getTotalNumFrames() const override;
+    virtual ofLoopType          getLoopState() const override;
+
+    virtual void                firstFrame() override;
+    virtual void                nextFrame() override;
+    virtual void                previousFrame() override;
+
     //
     virtual void                draw(float x, float y);
     virtual void                draw(float x, float y, float width, float height);
 
-protected:
-    void *          _movie;
+    /*
+     The timeout value determines how long calls to update() wait for
+     a frame to be ready before giving up.
+     */
+    int                         getTimeout() const;
+    void                        setTimeout(int microseconds);
 private:
-    void *          _gWorld;
-    unsigned char * _buffer;
-    ofShader        _shader;
-    ofTexture       _texture;
-    bool            _shaderLoaded;
-    bool            _playing;
-    float           _speed;
-    bool            _paused;
-    ofLoopType      _loopState;
-    bool            _wantsUpdate;
-	string			_moviePath;
-	bool			_hapAvailable;
-    int             _totalNumFrames;
-    int             _lastKnownFrameNumber;
-    int             _lastKnownFrameTime;
+    virtual void    foundMovie(int64_t duration) override;
+    virtual void    foundStream(AVStream *stream) override;
+    virtual void    foundAllStreams() override;
+    virtual void    readPacket(AVPacket *packet) override;
+    virtual void    discontinuity() override;
+    virtual void    endMovie() override;
+    virtual void    error(int averror) override;
+    virtual void    startAudio() override;
+    virtual void    stopAudio() override;
+    void            setPaused(bool pause, bool locked);
+    void            setVideoPTSLoaded(int64_t pts, bool round_up);
+    void            setPTSLoaded(int64_t pts);
+    void            setPositionLoaded(float pct);
+    void            update(ofEventArgs& args);
+    void            updatePTS();
+    void            read(ofxHap::TimeRangeSequence& sequence);
+    class AudioOutput : public ofBaseSoundOutput {
+    public:
+        AudioOutput();
+        ~AudioOutput();
+        void configure(int channels, int sampleRate, std::shared_ptr<ofxHap::RingBuffer> buffer);
+        void start();
+        void stop();
+        void close();
+        unsigned int getBestRate(unsigned int rate) const;
+        virtual void audioOut(ofSoundBuffer& buffer) override;
+    private:
+        bool                                _started;
+        int                                 _channels;
+        int                                 _sampleRate;
+        std::shared_ptr<ofxHap::RingBuffer> _buffer;
+        ofSoundStream                       _soundStream;
+    };
+    class DecodedFrame {
+    public:
+        DecodedFrame();
+        bool    isValid() const;
+        void    invalidate();
+        void    clear();
+        std::vector<char>   buffer;
+        int64_t             pts;
+        int64_t             duration;
+    };
+    mutable std::mutex  _lock;
+    bool                _loaded;
+    std::string         _error;
+    AVStream            *_videoStream;
+    int                 _audioStreamIndex;
+    DecodedFrame        _decodedFrame;
+    ofxHap::Clock       _clock;
+    uint64_t            _frameTime;
+    ofShader            _shader;
+    ofTexture           _texture;
+    bool                _playing;
+    bool                _wantsUpload;
+	string              _moviePath;
+    ofxHap::TimeRangeSet _active;
+    ofxHap::LockingPacketCache              _videoPackets;
+    std::shared_ptr<ofxHap::Demuxer>        _demuxer;
+    std::shared_ptr<ofxHap::RingBuffer>     _buffer;
+    std::shared_ptr<ofxHap::AudioThread>   _audioThread;
+    AudioOutput         _audioOut;
+    float               _volume;
+    std::chrono::microseconds               _timeout;
+    float               _positionOnLoad;
 };
 
 #endif /* defined(__ofxHapPlayer__) */
