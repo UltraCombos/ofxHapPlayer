@@ -104,7 +104,7 @@ public:
     //
     virtual void                draw(float x, float y);
     virtual void                draw(float x, float y, float width, float height);
-
+	virtual void				drawSubsection(float x, float y, float w, float h, float sx, float sy, float _sw, float _sh);
     /*
      The timeout value determines how long calls to update() wait for
      a frame to be ready before giving up.

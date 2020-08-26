@@ -52,27 +52,33 @@ extern "C" {
 #define kofxHapPlayerBufferUSec INT64_C(250000)
 #define kofxHapPlayerUSecPerSec 1000000L
 
-namespace ofxHapPY {
-    static const string vertexShader = "void main(void)\
-    {\
-    gl_FrontColor = gl_Color;\
-    gl_Position = ftransform();\
-    gl_TexCoord[0] = gl_MultiTexCoord0;\
-    }";
+#define STRINGIFY(x) #x
 
-    static const string fragmentShader = "uniform sampler2D cocgsy_src;\
-    const vec4 offsets = vec4(-0.50196078431373, -0.50196078431373, 0.0, 0.0);\
-    void main()\
-    {\
-    vec4 CoCgSY = texture2D(cocgsy_src, gl_TexCoord[0].xy);\
-    CoCgSY += offsets;\
-    float scale = ( CoCgSY.z * ( 255.0 / 8.0 ) ) + 1.0;\
-    float Co = CoCgSY.x / scale;\
-    float Cg = CoCgSY.y / scale;\
-    float Y = CoCgSY.w;\
-    vec4 rgba = vec4(Y + Co - Cg, Y + Cg, Y - Co - Cg, 1.0);\
-    gl_FragColor = rgba * gl_Color;\
-    }";
+namespace ofxHapPY {
+	static const string vertexShader = "#version 120\n" STRINGIFY(
+		void main(void)
+		{
+			gl_FrontColor = gl_Color;
+			gl_Position = ftransform();
+			gl_TexCoord[0] = gl_MultiTexCoord0;
+		}
+	);
+
+	static const string fragmentShader = "#version 120\n" STRINGIFY(
+		uniform sampler2D cocgsy_src;
+		const vec4 offsets = vec4(-0.50196078431373, -0.50196078431373, 0.0, 0.0);
+		void main()
+		{
+			vec4 CoCgSY = texture2D(cocgsy_src, gl_TexCoord[0].xy);
+			CoCgSY += offsets;
+			float scale = (CoCgSY.z * (255.0 / 8.0)) + 1.0;
+			float Co = CoCgSY.x / scale;
+			float Cg = CoCgSY.y / scale;
+			float Y = CoCgSY.w;
+			vec4 rgba = vec4(Y + Co - Cg, Y + Cg, Y - Co - Cg, 1.0);
+			gl_FragColor = rgba * gl_Color;
+		}
+	);
 
     /*
      Utility to round up to a multiple of 4 for DXT dimensions
@@ -628,6 +634,24 @@ void ofxHapPlayer::draw(float x, float y, float w, float h) {
             sh->end();
         }
     }
+}
+
+void ofxHapPlayer::drawSubsection(float x, float y, float w, float h, float sx, float sy, float _sw, float _sh) {
+	ofTexture *t = getTexture();
+	if (t->isAllocated())
+	{
+		ofShader *sh = getShader();
+		if (sh)
+		{
+			sh->begin();
+		}
+		t->drawSubsection(x, y, w, h, sx, sy, _sw, _sh);
+		if (sh)
+		{
+			sh->end();
+		}
+	}
+
 }
 
 void ofxHapPlayer::play()
