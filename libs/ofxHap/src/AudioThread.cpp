@@ -138,12 +138,12 @@ void ofxHap::AudioThread::threadMain(AudioParameters params, int outRate, std::s
                 queue.pop();
             }
 
-            int64_t now = av_gettime_relative();
+			int64_t now = av_gettime_relative();
             int64_t expected = av_rescale_q(now, {1, AV_TIME_BASE}, {1, sampleRate});
 
             {
                 // Dispose of cached samples we no longer need
-                ofxHap::TimeRangeSequence ranges = ofxHap::MovieTime::nextRanges(clock, expected - cacheusec, std::min(clock.period, cacheusec * INT64_C(2)));
+                ofxHap::TimeRangeSequence ranges = ofxHap::MovieTime::nextRanges(clock, expected - cacheusec, std::min(clock.getPeriod(), cacheusec * INT64_C(2)));
                 cache.limit(ranges);
             }
 
@@ -175,7 +175,7 @@ void ofxHap::AudioThread::threadMain(AudioParameters params, int outRate, std::s
 
                         if (current.start == AV_NOPTS_VALUE || current.length == 0)
                         {
-                            current = MovieTime::nextRange(clock, last, clock.period);
+                            current = MovieTime::nextRange(clock, last, clock.getPeriod());
                             fader.clear();
                             fader.add(0, 0.0, 1.0);
                             fader.add(av_rescale_q(std::abs(current.length), {1, sampleRate}, {1, static_cast<int>(outRate / std::fabs(clock.getRate()))}) - fader.getFadeDuration(), 1.0, 0.0);
@@ -202,7 +202,7 @@ void ofxHap::AudioThread::threadMain(AudioParameters params, int outRate, std::s
                                 }
                                 else
                                 {
-                                    consumed = static_cast<int>(clock.period - current.start);
+                                    consumed = static_cast<int>(clock.getPeriod() - current.start);
                                 }
                             }
                             consumed = std::min(consumed, static_cast<int>(std::abs(current.length)));

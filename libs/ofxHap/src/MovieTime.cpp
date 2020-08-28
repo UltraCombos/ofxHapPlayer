@@ -52,7 +52,7 @@ ofxHap::TimeRange ofxHap::MovieTime::nextRange(const ofxHap::Clock& clock, int64
     }
     else
     {
-        int64_t duration = std::min(clock.period - start, limit);
+        int64_t duration = std::min(clock.getPeriod() - start, limit);
         return TimeRange(start, duration);
     }
 }

@@ -37,9 +37,18 @@ namespace ofxHap {
     }
 }
 
-ofxHap::Clock::Clock() : period(0), mode(Mode::Loop), _start(0), _time(-1), _paused(false), _rate(1.0)
+ofxHap::Clock::Clock() : _period(0), mode(Mode::Loop), _start(0), _time(-1), _paused(false), _rate(1.0), _fn_tick(NULL), _arg(NULL)
 {
 
+}
+
+int64_t ofxHap::Clock::tick()
+{
+	if (_fn_tick)
+	{
+		_tick = _fn_tick(_arg);
+	}
+	return _tick;
 }
 
 void ofxHap::Clock::syncAt(int64_t pos, int64_t t)
@@ -63,20 +72,20 @@ int64_t ofxHap::Clock::getTimeAt(int64_t t) const
     }
     else if (mode == Mode::Once)
     {
-        if (t > period)
+        if (t > _period)
         {
-            return period;
+            return _period;
         }
         else if (t < 0)
         {
             // Once backwards
-            if (t < -period)
+            if (t < -_period)
             {
                 return 0;
             }
             else
             {
-                return period + t;
+                return _period + t;
             }
         }
         else
@@ -84,17 +93,17 @@ int64_t ofxHap::Clock::getTimeAt(int64_t t) const
             return t;
         }
     }
-    else if (period == 0)
+    else if (_period == 0)
     {
         return 0;
     }
-    else if (mode == Mode::Palindrome && clockMod((t / period), 2) == 1)
+    else if (mode == Mode::Palindrome && clockMod((t / _period), 2) == 1)
     {
-        return period - clockMod(t, period) - 1;
+        return _period - clockMod(t, _period) - 1;
     }
     else
     {
-        return clockMod(t, period);
+        return clockMod(t, _period);
     }
 }
 
@@ -134,11 +143,11 @@ ofxHap::Clock::Direction ofxHap::Clock::getDirectionAt(int64_t t) const
     {
         t = static_cast<int64_t>((t - _start) * _rate);
     }
-    if (period == 0)
+    if (_period == 0)
     {
         return Direction::Forwards;
     }
-    else if (mode == Mode::Palindrome && clockMod((t / period), 2) == 1)
+    else if (mode == Mode::Palindrome && clockMod((t / _period), 2) == 1)
     {
         if (_rate > 0)
         {
@@ -175,12 +184,12 @@ void ofxHap::Clock::setRateAt(float r, int64_t t)
 
 bool ofxHap::Clock::getDone() const
 {
-    return (mode == Mode::Once && getTime() == period) ? true : false;
+    return (mode == Mode::Once && getTime() == _period) ? true : false;
 }
 
 void ofxHap::Clock::rescale(int old, int next)
 {
-    period = av_rescale_q(period, {1, old}, {1, next});
+	_period = av_rescale_q(_period, {1, old}, {1, next});
     _start = av_rescale_q(_start, {1, old}, {1, next});
     _time = av_rescale_q(_time, {1, old}, {1, next});
 }

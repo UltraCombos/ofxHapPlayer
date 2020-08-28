@@ -111,6 +111,10 @@ public:
      */
     int                         getTimeout() const;
     void                        setTimeout(int microseconds);
+
+	void						setClockFnTick(ofxHap::Clock::fn_tick fn, void* arg);
+	void						resetClockFnTick();
+
 private:
     virtual void    foundMovie(int64_t duration) override;
     virtual void    foundStream(AVStream *stream) override;

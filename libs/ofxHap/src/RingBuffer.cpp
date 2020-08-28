@@ -30,10 +30,15 @@
 
 ofxHap::RingBuffer::RingBuffer(int channels, int samplesPerChannel)
 :   _readStart(0), _writeStart(0),
-    _buffer(channels * (samplesPerChannel + 1)), // maintain an empty slot to distinguish between empty and full state
+    //_buffer(channels * (samplesPerChannel + 1)), // maintain an empty slot to distinguish between empty and full state
     _channels(channels), _samples(samplesPerChannel)
 {
+	_buffer = (float*) malloc(channels * (samplesPerChannel + 1) * sizeof(float));
+}
 
+ofxHap::RingBuffer::~RingBuffer()
+{
+	delete _buffer;
 }
 
 int ofxHap::RingBuffer::getSamplesPerChannel() const
@@ -43,8 +48,10 @@ int ofxHap::RingBuffer::getSamplesPerChannel() const
 
 void ofxHap::RingBuffer::writeBegin(float *&first, int &firstCount, float *&second, int &secondCount)
 {
+	_mutex.lock();
     int writeStart = _writeStart;
     int readStart = _readStart;
+	_mutex.unlock();
 
     int writable = _samples - (writeStart - readStart);
 
@@ -59,14 +66,17 @@ void ofxHap::RingBuffer::writeBegin(float *&first, int &firstCount, float *&seco
 }
 
 void ofxHap::RingBuffer::writeEnd(int numSamples)
-{
+{	
+	std::unique_lock<std::mutex> locker(_mutex);
     _writeStart += numSamples;
 }
 
 void ofxHap::RingBuffer::readBegin(const float *&first, int &firstCount, const float *&second, int &secondCount)
 {
+	_mutex.lock();
     int writeStart = _writeStart;
     int readStart = _readStart;
+	_mutex.unlock();
 
     int readable = writeStart - readStart;
 
@@ -83,5 +93,6 @@ void ofxHap::RingBuffer::readBegin(const float *&first, int &firstCount, const f
 
 void ofxHap::RingBuffer::readEnd(int numSamples)
 {
+	std::unique_lock<std::mutex> locker(_mutex);
     _readStart += numSamples;
 }

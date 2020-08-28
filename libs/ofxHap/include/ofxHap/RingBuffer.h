@@ -31,6 +31,7 @@
 
 #include <atomic>
 #include <vector>
+#include <mutex>
 
 namespace ofxHap {
     class RingBuffer {
@@ -39,6 +40,8 @@ namespace ofxHap {
          A lock-free ring buffer for interleaved float audio samples
          */
         RingBuffer(int channels, int samplesPerChannel);
+		~RingBuffer();
+
         int getSamplesPerChannel() const;
         // On return first and second are pointers to positions to write samples to
         // firstCount and secondCount are the size, in samples per channel, of each buffer
@@ -51,9 +54,12 @@ namespace ofxHap {
         // numSamples is the number of samples per channel actually read
         void readEnd(int numSamples);
     private:
+
+		std::mutex			_mutex;
         std::atomic<int>    _readStart;
         std::atomic<int>    _writeStart;
-        std::vector<float>  _buffer;
+        //std::vector<float>  _buffer;
+		float*				_buffer;
         int                 _channels;
         int                 _samples;
     };

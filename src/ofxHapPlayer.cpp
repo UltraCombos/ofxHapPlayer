@@ -139,18 +139,25 @@ namespace ofxHapPY {
     }
 }
 
+int64_t gf_tick_default(void*)
+{
+	return av_gettime_relative();
+}
+
 // TODO:
 // 1.a What about AudioThread when paused? stopped?
 // 2. Fix sound_sync_test_hap.mov frequent audio position reset
 // 3. Pause in palindrome(low priority)
 
 ofxHapPlayer::ofxHapPlayer() :
-    _loaded(false), _videoStream(nullptr), _audioStreamIndex(-1), _frameTime(av_gettime_relative()), _playing(false),
+    _loaded(false), _videoStream(nullptr), _audioStreamIndex(-1), _playing(false),
     _wantsUpload(false),
     _demuxer(), _buffer(nullptr), _audioThread(nullptr), _audioOut(), _volume(1.0), _timeout(30000),
     _positionOnLoad(0.0)
 {
+	_clock.setFnTick(&gf_tick_default, NULL);
     _clock.setPausedAt(true, 0);
+	_frameTime = _clock.tick();
     ofAddListener(ofEvents().update, this, &ofxHapPlayer::update);
 }
 
@@ -198,7 +205,7 @@ bool ofxHapPlayer::load(string name)
 void ofxHapPlayer::foundMovie(int64_t duration)
 {
     std::lock_guard<std::mutex> guard(_lock);
-    _clock.period = duration;
+	_clock.setPeriod(duration);
 }
 
 void ofxHapPlayer::foundStream(AVStream *stream)
@@ -302,7 +309,7 @@ void ofxHapPlayer::close()
     _audioOut.close();
     _buffer.reset();
     _videoPackets.clear();
-    _clock.period = 0;
+    _clock.setPeriod(0);
     _clock.setPausedAt(true, 0);
     _wantsUpload = false;
     _videoStream = nullptr;
@@ -340,8 +347,7 @@ void ofxHapPlayer::update(ofEventArgs & args)
 {
     std::lock_guard<std::mutex> guard(_lock);
 
-    // Calculate our current position for video and audio (if present)
-    updatePTS();
+	updatePTS();
 
     if (!_loaded)
     {
@@ -351,8 +357,8 @@ void ofxHapPlayer::update(ofEventArgs & args)
     int64_t pts = _clock.getTime();
 
     // Sequences ahead of us (to request from the demuxer) and to keep cached
-    ofxHap::TimeRangeSequence future = ofxHap::MovieTime::nextRanges(_clock, _frameTime, std::min(_clock.period, kofxHapPlayerBufferUSec));
-    ofxHap::TimeRangeSequence cache = ofxHap::MovieTime::nextRanges(_clock, _frameTime - kofxHapPlayerBufferUSec, std::min(_clock.period, kofxHapPlayerBufferUSec * INT64_C(2)));
+    ofxHap::TimeRangeSequence future = ofxHap::MovieTime::nextRanges(_clock, _frameTime, std::min(_clock.getPeriod(), kofxHapPlayerBufferUSec));
+    ofxHap::TimeRangeSequence cache = ofxHap::MovieTime::nextRanges(_clock, _frameTime - kofxHapPlayerBufferUSec, std::min(_clock.getPeriod(), kofxHapPlayerBufferUSec * INT64_C(2)));
     // Rescale the cache for video
     ofxHap::TimeRangeSet vcache;
     for (auto& range : cache)
@@ -853,7 +859,7 @@ void ofxHapPlayer::setSpeed(float speed)
 float ofxHapPlayer::getDuration() const
 {
     std::lock_guard<std::mutex> guard(_lock);
-    return _clock.period / static_cast<float>(AV_TIME_BASE);
+    return _clock.getPeriod() / static_cast<float>(AV_TIME_BASE);
 }
 
 bool ofxHapPlayer::getIsMovieDone() const
@@ -865,9 +871,9 @@ bool ofxHapPlayer::getIsMovieDone() const
 float ofxHapPlayer::getPosition() const
 {
     std::lock_guard<std::mutex> guard(_lock);
-    if (_clock.period)
+    if (_clock.getPeriod())
     {
-        return _clock.getTime() / static_cast<float>(_clock.period);
+        return _clock.getTime() / static_cast<float>(_clock.getPeriod());
     }
     else
     {
@@ -891,13 +897,13 @@ void ofxHapPlayer::setPosition(float pct)
 
 void ofxHapPlayer::setPositionLoaded(float pct)
 {
-    int64_t time = ofClamp(pct, 0.0f, 1.0f) * (_clock.period - 1);
+    int64_t time = ofClamp(pct, 0.0f, 1.0f) * (_clock.getPeriod() - 1);
     setPTSLoaded(time);
 }
 
 void ofxHapPlayer::setVideoPTSLoaded(int64_t pts, bool round_up)
 {
-    pts = std::max(std::min(av_rescale_q_rnd(pts, _videoStream->time_base, { 1, AV_TIME_BASE }, round_up ? AV_ROUND_UP : AV_ROUND_DOWN), _clock.period - 1), INT64_C(0));
+    pts = std::max(std::min(av_rescale_q_rnd(pts, _videoStream->time_base, { 1, AV_TIME_BASE }, round_up ? AV_ROUND_UP : AV_ROUND_DOWN), _clock.getPeriod() - 1), INT64_C(0));
     setPTSLoaded(pts);
 }
 
@@ -996,9 +1002,9 @@ int ofxHapPlayer::getTotalNumFrames() const
 
 void ofxHapPlayer::updatePTS()
 {
-    _frameTime = av_gettime_relative();
+	_frameTime = _clock.tick();
     _clock.setTimeAt(_frameTime);
-    assert(_clock.getTime() <= _clock.period || _clock.period == 0);
+    assert(_clock.getTime() <= _clock.getPeriod() || _clock.getPeriod() == 0);
 }
 
 int ofxHapPlayer::getTimeout() const
@@ -1009,6 +1015,16 @@ int ofxHapPlayer::getTimeout() const
 void ofxHapPlayer::setTimeout(int microseconds)
 {
     _timeout = std::chrono::microseconds(microseconds);
+}
+
+void ofxHapPlayer::setClockFnTick(ofxHap::Clock::fn_tick fn, void* arg)
+{
+	_clock.setFnTick(fn, arg);
+}
+
+void ofxHapPlayer::resetClockFnTick()
+{
+	_clock.setFnTick(&gf_tick_default, NULL);
 }
 
 ofxHapPlayer::AudioOutput::AudioOutput()
