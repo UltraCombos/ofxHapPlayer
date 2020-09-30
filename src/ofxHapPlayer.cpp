@@ -1020,11 +1020,13 @@ void ofxHapPlayer::setTimeout(int microseconds)
 void ofxHapPlayer::setClockFnTick(ofxHap::Clock::fn_tick fn, void* arg)
 {
 	_clock.setFnTick(fn, arg);
+	updatePTS();
 }
 
 void ofxHapPlayer::resetClockFnTick()
 {
 	_clock.setFnTick(&gf_tick_default, NULL);
+	updatePTS();
 }
 
 ofxHapPlayer::AudioOutput::AudioOutput()
