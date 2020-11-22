@@ -170,6 +170,7 @@ private:
     ofShader            _shader;
     ofTexture           _texture;
     bool                _playing;
+	bool				_done;
     bool                _wantsUpload;
 	string              _moviePath;
     ofxHap::TimeRangeSet _active;

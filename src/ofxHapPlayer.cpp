@@ -150,7 +150,7 @@ int64_t gf_tick_default(void*)
 // 3. Pause in palindrome(low priority)
 
 ofxHapPlayer::ofxHapPlayer() :
-    _loaded(false), _videoStream(nullptr), _audioStreamIndex(-1), _playing(false),
+    _loaded(false), _videoStream(nullptr), _audioStreamIndex(-1), _playing(false), _done (false),
     _wantsUpload(false),
     _demuxer(), _buffer(nullptr), _audioThread(nullptr), _audioOut(), _volume(1.0), _timeout(30000),
     _positionOnLoad(0.0)
@@ -318,6 +318,7 @@ void ofxHapPlayer::close()
     _texture.clear();
     _decodedFrame.clear();
     _loaded = false;
+	_done = false;
     _error.clear();
 }
 
@@ -382,6 +383,7 @@ void ofxHapPlayer::update(ofEventArgs & args)
         vidPosition = _videoStream->duration - 1;
         // Stop if we have got to the end of the movie and aren't looping
         _playing = false;
+		_done = true;
     }
     else
     {
@@ -664,6 +666,7 @@ void ofxHapPlayer::play()
 {
     std::lock_guard<std::mutex> guard(_lock);
     _playing = true;
+	_done = false;
     if (_clock.getDone())
     {
         _clock.syncAt(0, _frameTime);
@@ -865,7 +868,7 @@ float ofxHapPlayer::getDuration() const
 bool ofxHapPlayer::getIsMovieDone() const
 {
     std::lock_guard<std::mutex> guard(_lock);
-    return _clock.getDone();
+    return _done;;
 }
 
 float ofxHapPlayer::getPosition() const
